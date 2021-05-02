@@ -4,7 +4,7 @@ Much of this could be factored out into more general utility functions and inter
 """
 import math
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 import shapefile
 
 BORDER = 20
@@ -15,19 +15,27 @@ ALL_COUNTRY_RECORDS = shapefile.Reader("./data/ne_50m_admin_0_countries.shp")
 Change to a different set of countries and near countries to get a different map."""
 SEA_COUNTRIES = ['Indonesia', 'Philippines', 'Vietnam', 'Thailand', 'Myanmar', 'Malaysia', 'Singapore', 'Cambodia',
                  'Laos', 'Brunei', 'East Timor']
+CORE_COUNTRY_SHAPES = [record for record in ALL_COUNTRY_RECORDS.shapeRecords()
+                       if record.record['NAME_EN'] in SEA_COUNTRIES]
+
 NAME_OFFSETS = {
-    "Myanmar": (-10, -50),
+    "Myanmar": (-10, -40),
     "Thailand": (0, -50),
     "Laos": (-30, -40),
-    "Vietnam": (83, 30),
-    "Singapore": (45, 15),
+    "Vietnam": (115, 30),
+    "Singapore": (30, 5),
     "Brunei": (-22, -12),
     "East Timor": (40, 16),
-    "Cambodia": (0, -8)
+    "Cambodia": (0, -8),
+    "Indonesia": (-60, 50),
+    "Philippines": (125, -10),
+    "Malaysia": (-40, 20)
 }
 
 NEAR_COUNTRIES = ["People's Republic of China", 'India', 'Bangladesh',
                   'Taiwan', 'Australia', 'Papua New Guinea', 'Bhutan']
+NEAR_COUNTRY_SHAPES = [record for record in ALL_COUNTRY_RECORDS.shapeRecords() if
+                       record.record['NAME_EN'] in NEAR_COUNTRIES]
 
 # Routine for setting up overall bounding box, using the excuse that these are literally "global" variables.
 polygons = []
@@ -70,7 +78,7 @@ def draw_name(img_draw, record):
     font_type = "Times.ttc"
     bbox = record.shape.bbox
     size = bbox[2] - bbox[0] + bbox[3] - bbox[1]
-    font_size = max(math.ceil(2 + math.pow(size, 0.2) * 10), 16)
+    font_size = max(math.ceil(2 + math.pow(size, 0.3) * 10), 16)
     font = ImageFont.truetype(font_type, font_size)
     name = record.record.NAME_EN
     w, h = font.getsize(name)
@@ -78,27 +86,31 @@ def draw_name(img_draw, record):
     top_left = (center[0] - w/2, center[1] - h/2)
     if name in NAME_OFFSETS:
         top_left = np.add(top_left, NAME_OFFSETS[name])
-    img_draw.text(top_left, name, font=font, align="center", fill="#333333")
+    img_draw.text(top_left, name, font=font, align="center", fill="#111111")
 
 
-def main():
+def get_base_image():
     size = [BORDER * 2 + int(PIXELS_PER_DEGREE * (MAXLAT - MINLAT)),
             BORDER * 2 + int(PIXELS_PER_DEGREE * (MAXLON - MINLON))]
     img = Image.new("RGB", size, "#f9f9f9")
     img_draw = ImageDraw.Draw(img)
 
-    core_shapes = [record for record in ALL_COUNTRY_RECORDS.shapeRecords() if record.record['NAME_EN'] in SEA_COUNTRIES]
-    near_shapes = [record for record in ALL_COUNTRY_RECORDS.shapeRecords() if
-                   record.record['NAME_EN'] in NEAR_COUNTRIES]
+    draw_countries(img_draw, CORE_COUNTRY_SHAPES)
+    draw_countries(img_draw, NEAR_COUNTRY_SHAPES, fill="#eeeeee")
+    return img, img_draw
 
-    draw_countries(img_draw, core_shapes)
-    draw_countries(img_draw, near_shapes, fill="#eeeeee")
 
-    for core_shape in core_shapes:
+def countries_and_names():
+    img, img_draw = get_base_image()
+    for core_shape in CORE_COUNTRY_SHAPES:
         draw_name(img_draw, core_shape)
-
+    img = ImageOps.expand(img, border=3)
     img.show()
     img.save("sea_countries.png")
+
+
+def main():
+    countries_and_names()
 
 
 if __name__ == '__main__':
