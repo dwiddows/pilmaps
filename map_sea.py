@@ -106,7 +106,7 @@ def countries_and_names():
         draw_name(img_draw, core_shape)
     img = ImageOps.expand(img, border=3)
     img.show()
-    img.save("sea_countries.png")
+    img.save("maps/sea_countries.png")
 
 
 def lat_lon_lines():
@@ -134,17 +134,17 @@ def lat_lon_lines():
 
     tmp_txt = Image.new("RGBA", (400, 50))
     tmp_draw = ImageDraw.Draw(tmp_txt)
-    tmp_draw.text((0, 0), "141st Meridian (East of Greenwich)", font=font, fill="#111111")
+    tmp_draw.text((0, 0), "141° East", font=font, fill="#111111")
     tmp_window = tmp_txt.rotate(270, expand=1)
     img.paste(tmp_window, point_to_coords((138, 20)), tmp_window)
 
     img = ImageOps.expand(img, border=3)
     img.show()
-    img.save("sea_lat_lon.png")
+    img.save("maps/sea_lat_lon.png")
 
 
 def main():
-    lat_lon_lines()
+    countries_and_names()
 
 
 if __name__ == '__main__':
