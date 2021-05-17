@@ -110,7 +110,7 @@ def countries_and_names():
 
 
 def lat_lon_lines():
-    """Draws lines and labels including rotation.
+    """Draws lines on equator and others and adds labels, including rotation.
 
     Actually quite a hassle to get working, might be easier to annotate manually in Mac Preview or similar."""
     img, img_draw = get_base_image()
@@ -143,8 +143,26 @@ def lat_lon_lines():
     img.save("maps/sea_lat_lon.png")
 
 
+def draw_rivers():
+    img, img_draw = get_base_image()
+    rivers = shapefile.Reader("data/ne_10m_rivers_lake_centerlines.shp")
+    sea_rivers = ["Mekong", "Salween", "awady", "Menam", "Red"]
+    for record in rivers.shapeRecords():
+        for coords in record_to_coords(record):
+            img_draw.line(coords, fill="black")
+
+    lakes = shapefile.Reader("data/ne_10m_lakes.shp")
+    for record in lakes.shapeRecords():
+        for coords in record_to_coords(record):
+            img_draw.polygon(coords, fill="black")
+
+    img = ImageOps.expand(img, border=3)
+    img.show()
+    img.save("maps/sea_rivers.png")
+
+
 def main():
-    countries_and_names()
+    draw_rivers()
 
 
 if __name__ == '__main__':
