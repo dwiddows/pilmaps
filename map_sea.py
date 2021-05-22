@@ -51,9 +51,9 @@ MAXLAT = max([x[1] for x in all_points])
 MINLAT = min([x[1] for x in all_points])
 
 
-def point_to_coords(lat_lon_point):
-    return (int(BORDER + PIXELS_PER_DEGREE * (lat_lon_point[0] - MINLON)),
-            int(BORDER + PIXELS_PER_DEGREE * (MAXLAT - lat_lon_point[1])))
+def point_to_coords(lon_lat_point):
+    return (int(BORDER + PIXELS_PER_DEGREE * (lon_lat_point[0] - MINLON)),
+            int(BORDER + PIXELS_PER_DEGREE * (MAXLAT - lon_lat_point[1])))
 
 
 def record_to_coords(record):
