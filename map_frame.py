@@ -62,6 +62,9 @@ class MapFrame:
             start = parts[i]
             end = parts[i + 1] if i + 1 < len(parts) else -1
             polygon = points[start:end]
+            # For now, skip the whole of any shape that has a coordinate beyond the visible edge of the sphere.
+            if any([np.dot(self.ecef_center, lon_lat_degrees_to_ecef(point)) < 0 for point in polygon]):
+                continue
             coords = [self.lon_lat_to_xy(point) for point in polygon]
             all_polylines.append(coords)
         return all_polylines

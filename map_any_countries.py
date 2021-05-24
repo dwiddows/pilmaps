@@ -12,12 +12,10 @@ FONT_TYPE = "Times.ttc"
 
 def draw_countries():
     all_country_records = shapefile.Reader("./data/ne_50m_admin_0_countries.shp")
-    country_names = ["Canada"]
-    for record in all_country_records.shapeRecords():
-        if "probe" in record.record["NAME_EN"]:
-            print(record.record["NAME_EN"])
+    country_names = ["Indonesia", "Madagascar", "Fiji", "Micronesia", "Taiwan"]
     country_shapes = [record for record in all_country_records.shapeRecords()
-                      if record.record['NAME_EN'] in country_names]
+                      if any([name_part in record.record['NAME_EN'] for name_part
+                             in country_names])]
 
     all_points = [point for country in country_shapes for point in country.shape.points]
     frame = MapFrame.from_points(all_points)
@@ -30,7 +28,7 @@ def draw_countries():
     img = Image.new("RGB", size, "#f9f9f9")
     img_draw = ImageDraw.Draw(img)
 
-    for record in country_shapes:
+    for record in all_country_records.shapeRecords(): #country_shapes:
         for polyline in frame.shape_record_to_plane_xy(record):
             plot_coords = [(BORDER + plot_width * coords[0], BORDER + plot_height * (1 - coords[1]))
                            for coords in polyline]
@@ -38,7 +36,7 @@ def draw_countries():
 
     img = ImageOps.expand(img, border=3)
     img.show()
-    img.save("maps/canada.png")
+    img.save("maps/my_local_file.png")
 
 
 if __name__ == '__main__':
