@@ -18,20 +18,33 @@ def get_ecef_bounds(lon_lat_list: List[Tuple[float, float]]) -> List[Tuple[float
     return [(min([point[i] for point in ecef_points]), max([point[i] for point in ecef_points])) for i in range(3)]
 
 
+def normalize(vector: np.ndarray) -> np.ndarray:
+    return vector / np.linalg.norm(vector)
+
+
 def get_perpendicular_basis(ecef_center: List[float]) -> List[List[float]]:
-    easting = np.cross([0, 0, 1], ecef_center)
-    return [list(easting), list(np.cross(ecef_center, easting))]
+    easting = normalize(np.cross([0, 0, 1], ecef_center))
+    return [list(easting), list(normalize(np.cross(ecef_center, easting)))]
 
 
 class MapFrame:
     """Holds the state and operations for mapping shapes in curvilinear coordinates to a rectangular map frame"""
     def __init__(self, ecef_bounds: List[Tuple[float, float]]):
+        if len(ecef_bounds) != 3:
+            raise ValueError("MapFrame must be initialized with exactly 3 pairs of min-max bounds.")
         self.ecef_bounds = ecef_bounds
         self.ecef_center = [(bound[0] + bound[1]) / 2 for bound in ecef_bounds]
         self.basis = get_perpendicular_basis(self.ecef_center)
         # TODO: Make scale rectangular not just assuming a square.
-        max_cos = np.dot(self.ecef_center, [b[1] for b in ecef_bounds])
-        self.plane_scale = 2 * np.sqrt(2) / np.sqrt(1 - max_cos * max_cos)
+        corners = [(ecef_bounds[0][i], ecef_bounds[1][j], ecef_bounds[2][k])
+                   for i in range(2) for j in range(2) for k in range(2)]
+        self.x_width = 2 * max([np.dot(corner, self.basis[0]) for corner in corners])
+        self.y_width = 2 * max([np.dot(corner, self.basis[1]) for corner in corners])
+        self.plane_scale = 2 * np.sqrt(self.x_width * self.x_width + self.y_width * self.y_width)
+
+    def __str__(self):
+        return f"Mapframe with center: {self.ecef_center}\nBounds:{self.ecef_bounds}\n" \
+               f"x_width: {self.x_width}\ty_width: {self.y_width}\tplane_scale: {self.plane_scale}"
 
     @classmethod
     def from_points(cls, lon_lat_points: List[Tuple[float, float]]):
@@ -40,17 +53,16 @@ class MapFrame:
     def lon_lat_to_xy(self, lon_lat_point: Tuple[float, float]) -> Tuple[float, float]:
         """Returns x and y points in the plane, between 0 and 1, meant to be proportions across the map frame"""
         ecef_point = lon_lat_degrees_to_ecef(lon_lat_point)
-        return ((1 + self.plane_scale * np.dot(ecef_point, self.basis[0])) / 2,
-                (1 + self.plane_scale * np.dot(ecef_point, self.basis[1])) / 2)
+        return (1 + np.dot(ecef_point, self.basis[0])) / 2, (1 + np.dot(ecef_point, self.basis[1])) / 2
 
     def shape_record_to_plane_xy(self, record: shapefile.ShapeRecord) -> List[List[Tuple[float, float]]]:
         points = record.shape.points
         parts = record.shape.parts
-        all_coords = []
+        all_polylines = []
         for i in range(len(parts)):
             start = parts[i]
             end = parts[i + 1] if i + 1 < len(parts) else -1
             polygon = points[start:end]
             coords = [self.lon_lat_to_xy(point) for point in polygon]
-            all_coords.append(coords)
-        return all_coords
+            all_polylines.append(coords)
+        return all_polylines
