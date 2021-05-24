@@ -12,7 +12,8 @@ FONT_TYPE = "Times.ttc"
 
 def draw_countries():
     all_country_records = shapefile.Reader("./data/ne_50m_admin_0_countries.shp")
-    country_names = ["Indonesia", "Madagascar", "Fiji", "Micronesia", "Taiwan"]
+    # country_names = ["Indonesia", "Madagascar", "Fiji", "Micronesia", "Taiwan"]
+    country_names = ["New Zealand", "Antarctica", "Fiji", "Indonesia", "Chile"]
     country_shapes = [record for record in all_country_records.shapeRecords()
                       if any([name_part in record.record['NAME_EN'] for name_part
                              in country_names])]
@@ -21,11 +22,11 @@ def draw_countries():
     frame = MapFrame.from_points(all_points)
     print(frame)
 
-    (plot_width, plot_height) = (MAX_EDGE, int(MAX_EDGE * frame.y_width / frame.x_width)) if frame.x_width > frame.y_width \
-        else (int(MAX_EDGE * frame.x_width / frame.y_width), MAX_EDGE)
+    (plot_width, plot_height) = (MAX_EDGE, int(MAX_EDGE * frame.y_width / frame.x_width))\
+        if frame.x_width > frame.y_width else (int(MAX_EDGE * frame.x_width / frame.y_width), MAX_EDGE)
 
     size = [BORDER * 2 + plot_width, BORDER * 2 + plot_height]
-    img = Image.new("RGB", size, "#f9f9f9")
+    img = Image.new("RGB", size, color="#fdfdfd")
     img_draw = ImageDraw.Draw(img)
 
     for record in all_country_records.shapeRecords(): #country_shapes:
