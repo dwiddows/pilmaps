@@ -15,3 +15,7 @@ def test_get_ecef_bounds():
 
 def test_get_perpendicular_basis():
     assert np.allclose(mf.get_perpendicular_basis([1, 0, 0]), [[0, 1, 0], [0, 0, 1]])
+
+
+def test_euclidean_distance():
+    assert np.allclose(mf.euclidean_distance((0.5, 0), (0, 0.5)), 0.7071067)

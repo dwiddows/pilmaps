@@ -27,6 +27,25 @@ def get_perpendicular_basis(ecef_center: List[float]) -> List[List[float]]:
     return [list(easting), list(normalize(np.cross(ecef_center, easting)))]
 
 
+def euclidean_distance(point1: Tuple[float, float], point2: Tuple[float, float]) -> float:
+    diff = np.array(point1) - np.array(point2)
+    return np.linalg.norm(diff)
+
+
+def filter_outliers(xy_points: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
+    filtered_points = []
+    for i in range(len(xy_points)):
+        before_point = xy_points[i - 1]
+        this_point = xy_points[i]
+        after_point = xy_points[i + 1] if i < len(xy_points) - 1 else xy_points[0]
+        if (euclidean_distance(this_point, before_point) < 10 * euclidean_distance(before_point, after_point)
+                and euclidean_distance(this_point, after_point) < 10 * euclidean_distance(before_point, after_point)):
+            filtered_points.append(this_point)
+        else:
+            print("Filtering a point ...")
+    return filtered_points
+
+
 class MapFrame:
     """Holds the state and operations for mapping shapes in curvilinear coordinates to a rectangular map frame"""
     def __init__(self, ecef_bounds: List[Tuple[float, float]]):
@@ -54,6 +73,12 @@ class MapFrame:
         return ((0.5 + np.dot(ecef_point, self.basis[0]) / self.x_width),
                 (0.5 + np.dot(ecef_point, self.basis[1]) / self.y_width))
 
+    def get_horizon_disk(self) -> List[Tuple[float, float]]:
+        num_points = 1000
+        points = [(0.5 + (np.cos(2 * i * np.pi / num_points) / self.x_width),
+                   0.5 + (np.sin(2 * i * np.pi / num_points) / self.y_width)) for i in range(num_points)]
+        return points
+
     def shape_record_to_plane_xy(self, record: shapefile.ShapeRecord) -> List[List[Tuple[float, float]]]:
         points = record.shape.points
         parts = record.shape.parts
@@ -64,6 +89,9 @@ class MapFrame:
             polygon = points[start:end]
             # For now, just discard points that are over the horizon, hoping that the wraparound doesn't look bad.
             polygon = [point for point in polygon if np.dot(self.ecef_center, lon_lat_degrees_to_ecef(point)) > 0]
+            # Hack to remove garbage around the south pole.
+            polygon = [point for point in polygon if point[1] > -85]
+            polygon = filter_outliers(polygon)
             if len(polygon) < 3:
                 continue
             coords = [self.lon_lat_to_xy(point) for point in polygon]
