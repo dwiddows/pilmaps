@@ -35,13 +35,14 @@ NAME_OFFSETS = {
 
 NEAR_COUNTRIES = ["People's Republic of China", 'India', 'Bangladesh',
                   'Taiwan', 'Australia', 'Papua New Guinea', 'Bhutan']
-NEAR_COUNTRY_SHAPES = [record for record in ALL_COUNTRY_RECORDS.shapeRecords() if
-                       record.record['NAME_EN'] in NEAR_COUNTRIES]
+NEAR_COUNTRY_SHAPES = [record for record in ALL_COUNTRY_RECORDS.shapeRecords()
+                       if record.record['NAME_EN'] in NEAR_COUNTRIES]
 
 # Routine for setting up overall bounding box, using the excuse that these are literally "global" variables.
 polygons = []
 for tmp_shape in ALL_COUNTRY_RECORDS.shapeRecords():
     if tmp_shape.record['NAME_EN'] in SEA_COUNTRIES:
+        print(f"Appending {tmp_shape.record['NAME_EN']}")
         polygons.append(tmp_shape.shape.points)
 
 all_points = [point for polygon in polygons for point in polygon]
@@ -52,7 +53,10 @@ MINLAT = min([x[1] for x in all_points])
 
 
 def point_to_coords(lon_lat_point):
-    return (int(BORDER + PIXELS_PER_DEGREE * (lon_lat_point[0] - MINLON)),
+    lon = lon_lat_point[0]
+    if lon < -180:
+        lon += 360
+    return (int(BORDER + PIXELS_PER_DEGREE * (lon - MINLON)),
             int(BORDER + PIXELS_PER_DEGREE * (MAXLAT - lon_lat_point[1])))
 
 
@@ -64,7 +68,11 @@ def record_to_coords(record):
         start = parts[i]
         end = parts[i + 1] if i + 1 < len(parts) else -1
         polygon = points[start:end]
+        if any([10 > point[0] > -90 for point in polygon]):
+            continue
         coords = [point_to_coords(point) for point in polygon]
+        if i == 1:
+            print(f"Shape {record.record['NAME_EN']}. Adding coord {coords[0]}")
         all_coords.append(coords)
     return all_coords
 
@@ -162,7 +170,7 @@ def draw_rivers():
 
 
 def main():
-    draw_rivers()
+    countries_and_names()
 
 
 if __name__ == '__main__':

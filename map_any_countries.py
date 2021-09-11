@@ -13,7 +13,7 @@ FONT_TYPE = "Times.ttc"
 def draw_countries():
     all_country_records = shapefile.Reader("./data/ne_50m_admin_0_countries.shp")
     country_names = ["Indonesia", "Madagascar", "Fiji", "Micronesia", "Taiwan", "Tahiti", "New Zealand"]
-    country_names = ["New Zealand", "Antarctica", "Fiji", "Indonesia", "Chile"]
+    # country_names = ["New Zealand", "Antarctica", "Fiji", "Indonesia", "Chile"]
     core_country_shapes = [record for record in all_country_records.shapeRecords()
                            if any([name_part in record.record['NAME_EN'] for name_part in country_names])]
 
