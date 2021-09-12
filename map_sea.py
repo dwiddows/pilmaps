@@ -2,13 +2,14 @@
 
 Much of this could be factored out into more general utility functions and interfaces.
 """
+import logging
 import math
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 import shapefile
 
 BORDER = 20
-PIXELS_PER_DEGREE = 20
+PIXELS_PER_DEGREE = 40
 FONT_TYPE = "Times.ttc"
 ALL_COUNTRY_RECORDS = shapefile.Reader("./data/ne_50m_admin_0_countries.shp")
 
@@ -24,7 +25,7 @@ NAME_OFFSETS = {
     "Thailand": (0, -50),
     "Laos": (-30, -40),
     "Vietnam": (115, 30),
-    "Singapore": (30, 5),
+    "Singapore": (25, 10),
     "Brunei": (-22, -12),
     "East Timor": (40, 16),
     "Cambodia": (0, -8),
@@ -52,9 +53,18 @@ class FlatFrame:
         self.img = Image.new("RGB", self.size, "#f9f9f9")
         self.img_draw = ImageDraw.Draw(self.img)
 
-        print(f"Made flat frame with "
-              f"\nminlat {self.minlat}\nmaxlat {self.maxlat}\nminlon {self.minlon}\nmaxlon {self.maxlon}"
-              f"\nsize {self.size}")
+        logging.debug(f"Made flat frame with \nminlat {self.minlat}\nmaxlat {self.maxlat}"
+                      f"\nminlon {self.minlon}\nmaxlon {self.maxlon}\nsize {self.size}")
+
+    def intersects(self, polygon):
+        return any([self.minlon < point[0] < self.maxlon and self.minlat < point[1] < self.maxlat for point in polygon])
+
+
+def get_name(record):
+    try:
+        return record.record.NAME
+    except:
+        return record.record.name
 
 
 def point_to_coords(lon_lat_point, frame: FlatFrame):
@@ -69,6 +79,11 @@ def record_to_coords(record, frame: FlatFrame):
     points = record.shape.points
     parts = record.shape.parts
     all_coords = []
+    if not frame.intersects(points):
+        return []
+    else:
+        logging.debug(f"Including intersecting shape {get_name(record)}")
+
     for i in range(len(parts)):
         start = parts[i]
         end = parts[i + 1] if i + 1 < len(parts) else -1
@@ -80,43 +95,38 @@ def record_to_coords(record, frame: FlatFrame):
     return all_coords
 
 
-def draw_countries(frame, shape_records, fill="#dddddd"):
+def draw_countries(frame, shape_records, fill="#dddddd", outline="grey"):
     for record in shape_records:
         for coords in record_to_coords(record, frame):
-            frame.img_draw.polygon(coords, fill=fill, outline="grey")
+            frame.img_draw.polygon(coords, fill=fill, outline=outline)
 
 
-def draw_name(frame: FlatFrame, record):
+def draw_name(frame: FlatFrame, record, name_on_line=False):
     bbox = record.shape.bbox
     size = bbox[2] - bbox[0] + bbox[3] - bbox[1]
     font_size = max(math.ceil(2 + math.pow(size, 0.3) * 10), 16)
     font = ImageFont.truetype(FONT_TYPE, font_size)
-    name = record.record.NAME_EN
+    name = get_name(record)
     w, h = font.getsize(name)
-    center = point_to_coords([(bbox[0] + bbox[2])/2, (bbox[1] + bbox[3])/2], frame)
+    lat_lon_spot = record.shape.points[len(record.shape.points) // 2] if name_on_line \
+        else [(bbox[0] + bbox[2])/2, (bbox[1] + bbox[3])/2]
+    center = point_to_coords(lat_lon_spot, frame)
     top_left = (center[0] - w/2, center[1] - h/2)
     if name in NAME_OFFSETS:
         top_left = np.add(top_left, NAME_OFFSETS[name])
     frame.img_draw.text(top_left, name, font=font, align="center", fill="#111111")
 
 
-def get_base_frame() -> FlatFrame:
-    # Routine for setting up overall bounding box, using the excuse that these are literally "global" variables.
-    polygons = []
-    for tmp_shape in ALL_COUNTRY_RECORDS.shapeRecords():
-        if tmp_shape.record['NAME_EN'] in SEA_COUNTRIES:
-            print(f"Appending {tmp_shape.record['NAME_EN']}")
-            polygons.append(tmp_shape.shape.points)
-
+def get_sea_base_frame(polygons, outline="grey") -> FlatFrame:
     frame = FlatFrame(polygons)
-
-    draw_countries(frame, CORE_COUNTRY_SHAPES)
+    draw_countries(frame, CORE_COUNTRY_SHAPES, outline=outline)
     draw_countries(frame, NEAR_COUNTRY_SHAPES, fill="#eeeeee")
     return frame
 
 
 def countries_and_names():
-    frame = get_base_frame()
+    polygons = [shape.shape.points for shape in CORE_COUNTRY_SHAPES]
+    frame = get_sea_base_frame(polygons)
     for core_shape in CORE_COUNTRY_SHAPES:
         draw_name(frame, core_shape)
     img = ImageOps.expand(frame.img, border=3)
@@ -128,7 +138,7 @@ def lat_lon_lines():
     """Draws lines on equator and others and adds labels, including rotation.
 
     Actually quite a hassle to get working, might be easier to annotate manually in Mac Preview or similar."""
-    frame = get_base_frame()
+    frame = get_sea_base_frame([shape.shape.points for shape in CORE_COUNTRY_SHAPES])
     dash_length = 5
     # Equator and tropic of cancer - horizontal
     for start, end in [((frame.minlon - 5, 0), (frame.maxlon + 5, 0)),
@@ -160,18 +170,43 @@ def lat_lon_lines():
     img.save("maps/sea_lat_lon.png")
 
 
+def draw_widening_river(coords, frame):
+    chunk_size = 50
+    chunks = [coords[i*chunk_size:(i+1)*chunk_size+1] for i in range(len(coords) // chunk_size)]
+    for i, chunk in enumerate(chunks):
+        frame.img_draw.line(chunk, fill="#555", width=i)
+
+
 def draw_rivers():
-    frame = get_base_frame()
+    land_border_shapes = [record for record in ALL_COUNTRY_RECORDS.shapeRecords()
+                          if record.record['NAME_EN'] in ["Myanmar", "Vietnam", "Cambodia"]]
+    polygon_with_bounds = [shape.shape.points for shape in land_border_shapes]
+    polygon_with_bounds.append([[88, 30]])
+    frame = get_sea_base_frame(polygon_with_bounds, outline="#cccccc")
     rivers = shapefile.Reader("data/ne_10m_rivers_lake_centerlines.shp")
-    sea_rivers = ["Mekong", "Salween", "awady", "Menam", "Red"]
+    sea_rivers = ["Mekong", "Lancang",
+                  "Tonlé Sap", "Tonle Sap",
+                  "Salween",
+                  "Irrawaddy Delta", "Ayeyarwady", "N'Mai", # Irrawaddy
+                  "Chao Phraya",  "Yom", "Ping",
+                  "Salween", "Nu",  # Salween
+                  "Brahmaputra", "Ganges", "Yarlung", "Dihang",  # Bhamaputra Ganges
+                  "Hong", "Da",  # Red river, Vietnam
+                  "Jinsha", "Chang Jiang", "Yalong", "Dadu", "Min"  # Yangtze
+                  ]
     for record in rivers.shapeRecords():
+        if frame.intersects(record.shape.points) and get_name(record) not in sea_rivers:
+            continue
         for coords in record_to_coords(record, frame):
-            frame.img_draw.line(coords, fill="black")
+            frame.img_draw.line(coords, fill="#444", width=2)
 
     lakes = shapefile.Reader("data/ne_10m_lakes.shp")
     for record in lakes.shapeRecords():
+        if get_name(record) not in sea_rivers:
+            continue
         for coords in record_to_coords(record, frame):
-            frame.img_draw.polygon(coords, fill="black")
+            frame.img_draw.polygon(coords, fill="#777")
+            frame.img_draw.line(coords, fill="#444", width=2)
 
     img = ImageOps.expand(frame.img, border=3)
     img.show()
@@ -179,6 +214,7 @@ def draw_rivers():
 
 
 def main():
+    logging.basicConfig(level=logging.INFO)
     draw_rivers()
 
 
