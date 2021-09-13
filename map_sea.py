@@ -102,6 +102,9 @@ def draw_countries(frame, shape_records, fill="#dddddd", outline="grey"):
 
 
 def draw_name(frame: FlatFrame, record, name_on_line=False):
+    if not hasattr(record.shape, 'bbox'):
+        logging.warning(f"Record with name f{get_name(record)} has no bounding box.")
+        return
     bbox = record.shape.bbox
     size = bbox[2] - bbox[0] + bbox[3] - bbox[1]
     font_size = max(math.ceil(2 + math.pow(size, 0.3) * 10), 16)
@@ -187,18 +190,30 @@ def draw_rivers():
     sea_rivers = ["Mekong", "Lancang",
                   "Tonlé Sap", "Tonle Sap",
                   "Salween",
-                  "Irrawaddy Delta", "Ayeyarwady", "N'Mai", # Irrawaddy
+                  "Irrawaddy Delta", "Ayeyarwady", "N'Mai",  # Irrawaddy
                   "Chao Phraya",  "Yom", "Ping",
                   "Salween", "Nu",  # Salween
                   "Brahmaputra", "Ganges", "Yarlung", "Dihang",  # Bhamaputra Ganges
-                  "Hong", "Da",  # Red river, Vietnam
-                  "Jinsha", "Chang Jiang", "Yalong", "Dadu", "Min"  # Yangtze
+                  "Hong", "Da",  # Red river, Vietnam, without
+                  "Jinsha", "Chang Jiang", "Yalong"  # Yangtze without Min, Dadu
                   ]
     for record in rivers.shapeRecords():
         if frame.intersects(record.shape.points) and get_name(record) not in sea_rivers:
             continue
         for coords in record_to_coords(record, frame):
             frame.img_draw.line(coords, fill="#444", width=2)
+        #draw_name(frame, record)
+
+    # Hack to join Brahmaputra reaches
+    yarlung = [x for x in rivers if get_name(x) == "Yarlung"][0]
+    dihang = [x for x in rivers if get_name(x) == "Dihang"][0]
+    coords = (
+        point_to_coords(yarlung.shape.points[-2], frame),
+        point_to_coords(yarlung.shape.points[-1], frame),
+        point_to_coords(dihang.shape.points[0], frame),
+        point_to_coords(dihang.shape.points[1], frame))
+    print(f"Yarlung to Dihang coords: {coords}")
+    frame.img_draw.line(coords, fill="#444", width=3)
 
     lakes = shapefile.Reader("data/ne_10m_lakes.shp")
     for record in lakes.shapeRecords():
@@ -206,7 +221,7 @@ def draw_rivers():
             continue
         for coords in record_to_coords(record, frame):
             frame.img_draw.polygon(coords, fill="#777")
-            frame.img_draw.line(coords, fill="#444", width=2)
+            frame.img_draw.line(coords, fill="#444", width=4)
 
     img = ImageOps.expand(frame.img, border=3)
     img.show()
